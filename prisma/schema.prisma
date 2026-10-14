@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ContactType {
+  FOUNDER
+  C_LEVEL
+  VP_DIRECTOR
+  GENERIC_INBOX
+  UNKNOWN
+}
+
+enum ValidationStatus {
+  VALID
+  INVALID
+  RISKY
+  UNCHECKED
+}
+
+enum WebsiteStatus {
+  ONLINE
+  REDIRECT
+  UNREACHABLE
+  TIMEOUT
+  UNCHECKED
+}
+
+enum MergeStatus {
+  ORIGINAL
+  MERGED
+  DUPLICATE_DISMISSED
+}
+
+model Lead {
+  id                  String           @id @default(cuid())
+  companyName         String
+  normalizedName      String
+  domain              String           @unique
+  normalizedDomain    String
+  websiteUrl          String
+  category            String
+  description         String?
+  
+  // Acquisition Fit Indicators
+  estimatedTeamSize   Int
+  foundedYear         Int
+  companyAge          Int
+  estimatedArrMin     Float?
+  estimatedArrMax     Float?
+  arrHintString       String?
+  techStack           String[]         @default([])
+  
+  // Contact Quality
+  contactName         String?
+  contactTitle        String?
+  contactEmail        String?
+  contactType         ContactType      @default(UNKNOWN)
+  emailStatus         ValidationStatus @default(UNCHECKED)
+  mxValid             Boolean?         @default(false)
+  
+  // Website Health
+  websiteStatus       WebsiteStatus    @default(UNCHECKED)
+  httpStatusCode      Int?
+  sslValid            Boolean?         @default(true)
+  responseTimeMs      Int?
+  
+  // Scoring
+  overallScore        Float            @default(0)
+  scoreBreakdown      Json?
+  aiExplanation       String?
+  
+  // Deduplication & Merge State
+  duplicateOfId       String?
+  duplicateOf         Lead?            @relation("LeadDuplicates", fields: [duplicateOfId], references: [id])
+  duplicates          Lead[]           @relation("LeadDuplicates")
+  mergeStatus         MergeStatus      @default(ORIGINAL)
+  mergeConfidence     Float?
+  mergeRationale      String?
+  
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([overallScore])
+  @@index([category])
+  @@index([normalizedDomain])
+  @@index([normalizedName])
+}
+
+model ScoringWeightConfig {
+  id               String   @id @default("default")
+  categoryWeight   Float    @default(15)
+  teamSizeWeight   Float    @default(20)
+  companyAgeWeight Float    @default(15)
+  revenueWeight    Float    @default(20)
+  contactWeight    Float    @default(15)
+  healthTechWeight Float    @default(15)
+  updatedAt        DateTime @updatedAt
+}
+
+model SavedFilter {
+  id          String   @id @default(cuid())
+  name        String
+  filtersJson Json
+  createdAt   DateTime @default(now())
+}
